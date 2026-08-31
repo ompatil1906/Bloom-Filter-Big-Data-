@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 
-export default function ResultsView({ data, results }) {
+export default function ResultsView({ data, results, capacityPct }) {
   const [filter, setFilter] = useState('All')
 
   if (!data) {
@@ -23,11 +23,32 @@ export default function ResultsView({ data, results }) {
   const bf = results.bloom_filter
   const total = data.summary.total_entries
   const unique = data.summary.unique_urls_in_data
+  const cfg = results.config || {}
+
+  const qualityLabel = (value, good, high) =>
+    value >= good ? { text: 'Good', cls: 'q-good' } : value >= high ? { text: 'Acceptable', cls: 'q-accept' } : { text: 'Poor', cls: 'q-poor' }
+
+  const accQ = qualityLabel(s.accuracy, 95, 80)
+  const precQ = qualityLabel(s.precision, 90, 70)
+  const recQ = qualityLabel(s.recall, 99, 90)
 
   const filteredResults = results.results.filter((r) => filter === 'All' || r.status === filter)
 
+  const resolvedCap = cfg.capacity_pct ?? capacityPct ?? 100
+
   return (
     <div>
+      <div className="config-strip">
+        <div className="config-strip-title">Analysis context</div>
+        <div className="config-strip-items">
+          <span>Dataset: <strong>{data.summary.total_entries.toLocaleString()}</strong> visits / <strong>{unique.toLocaleString()}</strong> unique</span>
+          <span>Target FPR: <strong>{(bf.false_positive_rate * 100).toFixed(2)}%</strong></span>
+          <span>Capacity: <strong>{resolvedCap}%</strong></span>
+          <span>Filter sized for <strong>{cfg.expected_items?.toLocaleString() ?? '—'}</strong> items</span>
+          <span>Actual FPR: <strong>{s.actual_fpr.toFixed(3)}%</strong></span>
+        </div>
+      </div>
+
       <h3>Confusion Matrix Counts</h3>
       <div className="metrics-grid">
         <div className="metric">
@@ -55,19 +76,26 @@ export default function ResultsView({ data, results }) {
         <div className="metric">
           <div className="metric-label">Accuracy</div>
           <div className="metric-value">{s.accuracy.toFixed(2)}%</div>
+          <div className="metric-sub"><span className={`q-badge ${accQ.cls}`}>{accQ.text}</span></div>
         </div>
         <div className="metric">
           <div className="metric-label">Precision</div>
           <div className="metric-value">{s.precision.toFixed(2)}%</div>
+          <div className="metric-sub"><span className={`q-badge ${precQ.cls}`}>{precQ.text}</span></div>
         </div>
         <div className="metric">
           <div className="metric-label">Recall</div>
           <div className="metric-value">{s.recall.toFixed(2)}%</div>
+          <div className="metric-sub"><span className={`q-badge ${recQ.cls}`}>{recQ.text}</span></div>
         </div>
         <div className="metric">
           <div className="metric-label">F1 Score</div>
           <div className="metric-value">{s.f1_score.toFixed(2)}%</div>
         </div>
+      </div>
+
+      <div className="card-caption" style={{ marginBottom: '1.5rem' }}>
+        Non-zero false positives come from sizing the filter at <strong>{resolvedCap}%</strong> of the true unique count. Lower the capacity to make this effect (and the false-positive cost) more visible.
       </div>
       <div className="metrics-grid">
         <div className="metric">

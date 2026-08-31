@@ -96,12 +96,19 @@ def generate_browser_history(
     - The remaining sites are visited less often.
     - Visits are spread over a 30-day period.
 
+    The duplicate ratio is derived deterministically: every unique URL
+    appears exactly once, and the remaining (num_entries - num_unique_urls)
+    entries are repeats of popular URLs. The resulting duplicate rate equals
+    (num_entries - num_unique_urls) / num_entries.
+
     Args:
         num_entries (int): Total number of history entries to generate.
-        num_unique_urls (int): Number of unique URLs in the pool.
-        duplicate_ratio (float): Fraction of entries that should be
-                                  duplicates (0.0 to 1.0). A value of 0.6
-                                  means ~60% of entries will be revisits.
+        num_unique_urls (int): Number of distinct URLs that will appear in the
+                                data (each appears at least once).
+        duplicate_ratio (float): Kept for backward compatibility with the API
+                                 but no longer controls generation directly;
+                                 duplicates are derived from num_entries and
+                                 num_unique_urls.
         output_path (str): Path to save the generated CSV file.
 
     Returns:
@@ -112,39 +119,47 @@ def generate_browser_history(
     os.makedirs(os.path.dirname(output_path) if os.path.dirname(output_path) else ".",
                 exist_ok=True)
 
-    # Generate the URL pool
+    # Guard against impossible inputs: we need at least as many entries as unique URLs
+    # so that every unique URL can appear once.
+    if num_entries < num_unique_urls:
+        num_unique_urls = num_entries
+
+    # Generate exactly `num_unique_urls` distinct URLs that WILL appear in the data.
+    # This makes `unique_in_data` predictable and matching the user's input (not a
+    # random subset of a larger pool). Every unique URL appears once as a "first seen".
     unique_urls = generate_unique_url_pool(num_unique_urls)
 
-    # Designate "popular" URLs — top 10% get most of the traffic
+    # Designate "popular" URLs — top 10% get the bulk of the duplicate traffic.
     popular_count = max(1, int(num_unique_urls * 0.1))
     popular_urls = unique_urls[:popular_count]
-    other_urls = unique_urls[popular_count:]
 
-    # Generate history entries
+    # Number of duplicate (repeat) visits: the remaining entries beyond the unique ones.
+    num_duplicates = num_entries - num_unique_urls
+
+    # History starts with every unique URL appearing exactly once (guaranteed "first seen").
     history = []
+    for url in unique_urls:
+        history.append({"url": url, "visit_time": 0, "visit_date": ""})
+
+    # Generate the duplicate visits from the popular subset with power-law weighting.
+    if popular_urls:
+        weights = [2 ** (popular_count - j) for j in range(popular_count)]
+    else:
+        weights = [1] * num_unique_urls
+        popular_urls = unique_urls
+
+    for _ in range(num_duplicates):
+        url = random.choices(popular_urls, weights=weights, k=1)[0]
+        history.append({"url": url, "visit_time": 0, "visit_date": ""})
+
+    # Sort into a random chronological order and stamp real timestamps over a 30-day window.
+    random.shuffle(history)
     base_time = datetime.now() - timedelta(days=30)
-
-    for i in range(num_entries):
-        # Decide if this entry should be from the popular pool (duplicates)
-        if random.random() < duplicate_ratio and popular_urls:
-            # Popular URLs: weighted random — some are more popular than others
-            # Use exponential weighting so the top few dominate
-            weights = [2 ** (popular_count - j) for j in range(popular_count)]
-            url = random.choices(popular_urls, weights=weights, k=1)[0]
-        else:
-            # Less popular URLs
-            url = random.choice(other_urls if other_urls else unique_urls)
-
-        # Generate a random visit time within the 30-day window
+    for row in history:
         seconds_offset = random.randint(0, 30 * 24 * 3600)
         visit_time = base_time + timedelta(seconds=seconds_offset)
-        visit_timestamp = int(visit_time.timestamp())
-
-        history.append({
-            "url": url,
-            "visit_time": visit_timestamp,
-            "visit_date": visit_time.strftime("%Y-%m-%d %H:%M:%S"),
-        })
+        row["visit_time"] = int(visit_time.timestamp())
+        row["visit_date"] = visit_time.strftime("%Y-%m-%d %H:%M:%S")
 
     # Sort by visit time (chronological order)
     history.sort(key=lambda x: x["visit_time"])
@@ -155,6 +170,7 @@ def generate_browser_history(
         writer.writeheader()
         writer.writerows(history)
 
+    # Calculate summary statistics — now consistent with the requested inputs.
     # Calculate summary statistics
     all_urls = [entry["url"] for entry in history]
     unique_in_data = len(set(all_urls))

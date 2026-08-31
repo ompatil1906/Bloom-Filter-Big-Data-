@@ -4,8 +4,7 @@ import { generateData, uploadCSV } from '../services/api'
 export default function DataInput({ data, onDataLoaded, setLoading, setError }) {
   const [mode, setMode] = useState('generate')
   const [numEntries, setNumEntries] = useState(10000)
-  const [numUnique, setNumUnique] = useState(500)
-  const [dupRatio, setDupRatio] = useState(0.6)
+  const [numUnique, setNumUnique] = useState(4000)
   const [fileName, setFileName] = useState('')
   const [localLoading, setLocalLoading] = useState(false)
   const fileInputRef = useRef(null)
@@ -17,8 +16,7 @@ export default function DataInput({ data, onDataLoaded, setLoading, setError }) 
     try {
       const result = await generateData({
         num_entries: numEntries,
-        num_unique_urls: numUnique,
-        duplicate_ratio: dupRatio,
+        num_unique_urls: Math.min(numUnique, numEntries),
       })
       onDataLoaded(result)
     } catch (e) {
@@ -85,24 +83,23 @@ export default function DataInput({ data, onDataLoaded, setLoading, setError }) 
               <input
                 type="number"
                 min="50"
-                max="2000"
+                max="5000"
                 step="50"
-                value={numUnique}
+                value={Math.min(numUnique, numEntries)}
                 onChange={(e) => setNumUnique(Number(e.target.value))}
               />
-              <div className="form-hint">Distinct URLs used by the generator</div>
+              <div className="form-hint">Distinct URLs — each appears once, the rest are repeats</div>
             </div>
             <div className="form-group">
-              <label>Duplicate pressure: {(dupRatio * 100).toFixed(0)}%</label>
-              <input
-                type="range"
-                min="0.1"
-                max="0.9"
-                step="0.05"
-                value={dupRatio}
-                onChange={(e) => setDupRatio(Number(e.target.value))}
-              />
-              <div className="form-hint">Higher = more repeated visits</div>
+              <label>Resulting duplicate rate</label>
+              <div className="stat-preview">
+                {numEntries > 0
+                  ? `${(((numEntries - Math.min(numUnique, numEntries)) / numEntries) * 100).toFixed(1)}%`
+                  : '—'}
+              </div>
+              <div className="form-hint">
+                ({Math.max(0, numEntries - Math.min(numUnique, numEntries)).toLocaleString()} repeated visits)
+              </div>
             </div>
           </div>
           <div style={{ maxWidth: '240px' }}>

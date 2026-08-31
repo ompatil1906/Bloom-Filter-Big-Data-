@@ -32,11 +32,11 @@ export async function uploadCSV(file) {
   return handleResponse(res)
 }
 
-export async function analyze(dataPath, fpRate) {
+export async function analyze(dataPath, fpRate, capacityPct) {
   const res = await fetch(`${API_BASE}/analyze`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ data_path: dataPath, fp_rate: fpRate }),
+    body: JSON.stringify({ data_path: dataPath, fp_rate: fpRate, capacity_pct: capacityPct }),
   })
   return handleResponse(res)
 }

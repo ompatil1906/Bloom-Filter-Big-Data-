@@ -56,6 +56,7 @@ class GenerateDataRequest(BaseModel):
 class AnalyzeRequest(BaseModel):
     data_path: str
     fp_rate: float = 0.01
+    capacity_pct: float = 100.0
 
 
 class DataSummary(BaseModel):
@@ -133,8 +134,21 @@ async def analyze(request: AnalyzeRequest):
 
         urls = load_csv_data(request.data_path)
 
-        unique_count = max(len(set(urls)), 1)
-        bf = BloomFilter(expected_items=unique_count, false_positive_rate=request.fp_rate)
+        actual_unique = len(set(urls))
+        # Capacity controls how the filter is sized relative to the TRUE unique count.
+        # capacity_pct < 100 -> filter is under-sized -> it over-fills -> real, visible
+        # false positives (genuine, non-trivial metrics). 100 = optimal sizing (~0 FP).
+        capacity = max(1.0, min(float(request.capacity_pct), 400.0))
+        expected_items = max(1, int(round(actual_unique * capacity / 100.0)))
+        bf = BloomFilter(expected_items=expected_items, false_positive_rate=request.fp_rate)
+
+        config_context = {
+            "fp_rate": request.fp_rate,
+            "capacity_pct": capacity,
+            "actual_unique": actual_unique,
+            "expected_items": expected_items,
+            "fill_ratio": None,  # filled after processing
+        }
 
         results = []
         ground_truth_set = set()
@@ -224,6 +238,10 @@ async def analyze(request: AnalyzeRequest):
             "duplicate_percentage": mode_result["duplicate_percentage"],
         }
 
+        config_context["fill_ratio"] = bf.fill_ratio()
+        config_context["items_added"] = bf.items_added
+        config_context["current_fpr"] = bf.current_false_positive_rate()
+
         bit_snapshot = bf.get_bit_array_snapshot(max_length=500)
 
         m = bf.size
@@ -233,6 +251,7 @@ async def analyze(request: AnalyzeRequest):
 
         return {
             "success": True,
+            "config": config_context,
             "accuracy_stats": {
                 "true_positives": true_positives,
                 "false_positives": false_positives,

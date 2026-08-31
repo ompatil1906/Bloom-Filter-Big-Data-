@@ -7,6 +7,8 @@ export default function DataAnalysisView({
   results,
   fpRate,
   setFpRate,
+  capacityPct,
+  setCapacityPct,
   onDataLoaded,
   onAnalyze,
   setLoading,
@@ -30,12 +32,26 @@ export default function DataAnalysisView({
         />
       </div>
 
+      {data && (
+        <div className="config-strip">
+          <div className="config-strip-title">Dataset config</div>
+          <div className="config-strip-items">
+            <span>Total entries: <strong>{data.summary.total_entries.toLocaleString()}</strong></span>
+            <span>Unique URLs: <strong>{data.summary.unique_urls_in_data.toLocaleString()}</strong></span>
+            <span>Duplicates: <strong>{data.summary.duplicate_entries.toLocaleString()}</strong></span>
+            <span>Duplicate rate: <strong>{(data.summary.actual_duplicate_ratio * 100).toFixed(1)}%</strong></span>
+          </div>
+        </div>
+      )}
+
       <div className="panel">
         <div className="panel-heading">2 · Run Bloom analysis</div>
         <BloomConfig
           data={data}
           fpRate={fpRate}
           setFpRate={setFpRate}
+          capacityPct={capacityPct}
+          setCapacityPct={setCapacityPct}
           onAnalyze={onAnalyze}
           setLoading={setLoading}
           setError={setError}

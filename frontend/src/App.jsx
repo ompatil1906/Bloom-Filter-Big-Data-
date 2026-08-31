@@ -20,6 +20,7 @@ export default function App() {
   const [data, setData] = useState(null)
   const [results, setResults] = useState(null)
   const [fpRate, setFpRate] = useState(0.01)
+  const [capacityPct, setCapacityPct] = useState(100)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
@@ -42,6 +43,7 @@ export default function App() {
     setData(null)
     setResults(null)
     setError(null)
+    setCapacityPct(100)
     setActiveNav('dashboard')
   }
 
@@ -60,6 +62,8 @@ export default function App() {
             results={results}
             fpRate={fpRate}
             setFpRate={setFpRate}
+            capacityPct={capacityPct}
+            setCapacityPct={setCapacityPct}
             onDataLoaded={handleDataLoaded}
             onAnalyze={handleAnalyzed}
             setLoading={setLoading}
@@ -68,7 +72,7 @@ export default function App() {
           />
         )
       case 'detection':
-        return <ResultsView data={data} results={results} />
+        return <ResultsView data={data} results={results} capacityPct={capacityPct} />
       case 'mode':
         return <ModeView data={data} results={results} />
       case 'charts':
