@@ -1,4 +1,4 @@
- # 🔍 Detect Duplicate Web URLs Using Bloom Filters
+# 🔍 Detect Duplicate Web URLs Using Bloom Filters
 
 > **Big Data Analytics — Mode Calculation**
 > Detect duplicate URLs in browser history using a Bloom Filter, and find the most visited URL (mode).
@@ -9,466 +9,249 @@
 
 - [Problem Statement](#-problem-statement)
 - [What is a Bloom Filter?](#-what-is-a-bloom-filter)
-  - [How It Works](#how-it-works)
-  - [Key Properties](#key-properties)
-  - [Mathematical Formulas](#mathematical-formulas)
-  - [Step-by-Step Example](#step-by-step-example)
 - [What is Mode Calculation?](#-what-is-mode-calculation)
 - [Project Architecture](#-project-architecture)
 - [Installation & Setup](#-installation--setup)
 - [How to Run](#-how-to-run)
 - [Application Features](#-application-features)
-- [Code Walkthrough](#-code-walkthrough)
-  - [bloom_filter.py](#1-bloom_filterpy--core-bloom-filter)
-  - [data_generator.py](#2-data_generatorpy--synthetic-data-generator)
-  - [mode_calculator.py](#3-mode_calculatorpy--mode-calculation)
-  - [utils.py](#4-utilspy--utility-functions)
-  - [app.py](#5-apppy--streamlit-gui)
-- [Key Observations & Results](#-key-observations--results)
+- [API Endpoints](#-api-endpoints)
 - [Technologies Used](#-technologies-used)
-- [References](#-references)
+- [Key Observations & Results](#-key-observations--results)
 
 ---
 
-## 📝 Problem Statement
+## 🎯 Problem Statement
 
-Detect duplicate web URLs in a browser history using Bloom Filters — Mode Calculation.
+**Detect duplicate web URLs in a browser history using Bloom Filters.**
 
-### Objective
-
-1. **Duplicate Detection**: Use a Bloom Filter to efficiently identify which URLs in a browsing history have been visited before (duplicates).
-2. **Mode Calculation**: Find the most frequently visited URL(s) in the browser history — the statistical **mode**.
-
-### Why Bloom Filters?
-
-In Big Data scenarios, storing every URL in a hash set becomes memory-expensive. For example:
-- **10 million URLs** in a Python set ≈ **~1 GB** of RAM
-- **10 million URLs** in a Bloom Filter ≈ **~12 MB** of RAM (with 1% false positive rate)
-
-That's a **~98.8% memory reduction!**
+Modern browsers accumulate thousands of history entries. Many are repeat visits to the same pages. Detecting these duplicates efficiently — without storing every full URL string — is a classic **Big Data** problem. A **Bloom Filter** solves this with minimal memory at the cost of a tiny, controllable false-positive rate.
 
 ---
 
-## 🌸 What is a Bloom Filter?
+## 🔍 What is a Bloom Filter?
 
-A **Bloom Filter** is a space-efficient **probabilistic data structure** invented by Burton Howard Bloom in 1970. It is used to test whether an element is a member of a set.
-
-### How It Works
-
-A Bloom Filter consists of:
-- A **bit array** of `m` bits, all initialized to `0`
-- `k` independent **hash functions**, each mapping an element to one of the `m` bit positions
-
-#### Adding an Element
-
-When adding a URL (e.g., `"https://google.com"`):
-
-```
-URL: "https://google.com"
-    │
-    ├──► Hash₁("https://google.com") → index 3
-    ├──► Hash₂("https://google.com") → index 7
-    └──► Hash₃("https://google.com") → index 12
-
-Bit Array (before): [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-                                ↑              ↑              ↑
-                             idx=3          idx=7          idx=12
-
-Bit Array (after):  [0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0]
-```
-
-#### Checking an Element
-
-When checking if a URL exists:
-
-```
-URL: "https://google.com"
-    │
-    ├──► Hash₁ → index 3  → bit[3]  = 1 ✅
-    ├──► Hash₂ → index 7  → bit[7]  = 1 ✅
-    └──► Hash₃ → index 12 → bit[12] = 1 ✅
-
-Result: ALL bits are 1 → "PROBABLY in the set" ✅
-```
-
-```
-URL: "https://example.com"  (never added)
-    │
-    ├──► Hash₁ → index 1  → bit[1]  = 0 ❌
-    ├──► Hash₂ → index 5  → bit[5]  = 0 ❌
-    └──► Hash₃ → index 9  → bit[9]  = 0 ❌
-
-Result: Some bits are 0 → "DEFINITELY NOT in the set" ❌
-```
+A **Bloom Filter** is a space-efficient probabilistic data structure used to test whether an element is a member of a set.
 
 ### Key Properties
 
-| Property | Description |
-|----------|-------------|
-| **No False Negatives** | If the filter says "not present", the URL is **guaranteed** to not have been seen before. This is **100% reliable**. |
-| **Possible False Positives** | If the filter says "present", there is a small probability (`p`) that this is a mistake — the URL was never actually added, but its hash indices happen to overlap with other URLs' indices. |
-| **No Deletion** | Standard Bloom Filters don't support removing elements. Once a bit is set to `1`, it stays `1`. |
-| **Space Efficient** | Uses only `m` bits regardless of the size of the stored elements. A URL string can be 100+ bytes, but the Bloom Filter only needs ~10 bits per element. |
+- **FALSE NEGATIVES are IMPOSSIBLE**: If the filter says "not present", the element is *guaranteed* to not be in the set.
+- **FALSE POSITIVES are POSSIBLE**: If the filter says "present", there is a small probability it could be wrong.
 
-### Mathematical Formulas
+### How It Works
 
-#### 1. Optimal Bit Array Size (`m`)
+1. Maintain a bit array of size **m**, initialized to all 0s.
+2. Use **k** independent hash functions.
+3. **ADD** an item: hash it with all k functions, set bits at those indices to 1.
+4. **CHECK** an item: hash it with all k functions, check if ALL bits are 1.
+   - If any bit is 0 → **definitely not** in the set.
+   - If all bits are 1 → **probably** in the set (could be a false positive).
 
-Given:
-- `n` = expected number of unique elements
-- `p` = desired false positive probability
-
-```
-m = -(n × ln(p)) / (ln 2)²
-```
-
-**Example**: For `n = 1000` URLs and `p = 0.01` (1% false positive rate):
-```
-m = -(1000 × ln(0.01)) / (ln 2)²
-m = -(1000 × (-4.605)) / (0.693)²
-m = 4605 / 0.480
-m ≈ 9,585 bits ≈ 1.17 KB
-```
-
-#### 2. Optimal Number of Hash Functions (`k`)
+### Optimal Parameters
 
 ```
-k = (m / n) × ln 2
+Bit array size:  m = -(n * ln(p)) / (ln2)²
+Hash functions:  k = (m / n) * ln2
 ```
 
-**Example**: With `m = 9585` and `n = 1000`:
-```
-k = (9585 / 1000) × 0.693
-k ≈ 6.64 → 7 hash functions
-```
-
-#### 3. Actual False Positive Rate
-
-After inserting `n` elements:
-```
-P ≈ (1 - e^(-k × n / m))^k
-```
-
-### Step-by-Step Example
-
-Let's trace through a small example with `m = 10` bits and `k = 2` hash functions:
-
-```
-Initial state:  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-
-Step 1: Add "google.com"
-  Hash₁("google.com") % 10 = 2
-  Hash₂("google.com") % 10 = 5
-  Bit array:    [0, 0, 1, 0, 0, 1, 0, 0, 0, 0]
-
-Step 2: Add "youtube.com"
-  Hash₁("youtube.com") % 10 = 1
-  Hash₂("youtube.com") % 10 = 8
-  Bit array:    [0, 1, 1, 0, 0, 1, 0, 0, 1, 0]
-
-Step 3: Check "google.com"
-  Hash₁("google.com") % 10 = 2  → bit[2] = 1 ✅
-  Hash₂("google.com") % 10 = 5  → bit[5] = 1 ✅
-  Result: PROBABLY IN THE SET → DUPLICATE! ✅
-
-Step 4: Check "facebook.com" (never added)
-  Hash₁("facebook.com") % 10 = 5  → bit[5] = 1 ✅
-  Hash₂("facebook.com") % 10 = 8  → bit[8] = 1 ✅
-  Result: PROBABLY IN THE SET → FALSE POSITIVE! ⚠️
-  (Both indices happen to be set by other URLs)
-
-Step 5: Check "reddit.com" (never added)
-  Hash₁("reddit.com") % 10 = 3  → bit[3] = 0 ❌
-  Result: DEFINITELY NOT IN THE SET ✅
-  (At least one bit is 0, so it was never added)
-```
+Where `n` = expected number of items and `p` = desired false-positive rate.
 
 ---
 
 ## 📊 What is Mode Calculation?
 
-In statistics, the **mode** is the value that appears **most frequently** in a dataset.
-
-### In the Context of Browser History:
-
-```
-Browser History URLs:
-  1. google.com       ← visit
-  2. youtube.com      ← visit
-  3. google.com       ← visit (duplicate!)
-  4. github.com       ← visit
-  5. google.com       ← visit (duplicate!)
-  6. youtube.com      ← visit (duplicate!)
-
-Frequency Count:
-  google.com  → 3 visits
-  youtube.com → 2 visits
-  github.com  → 1 visit
-
-MODE = google.com (highest frequency = 3)
-```
-
-### Key Concepts:
-
-| Term | Definition |
-|------|------------|
-| **Mode** | The URL with the highest visit count |
-| **Multimodal** | When multiple URLs share the same highest frequency |
-| **Frequency Distribution** | A table showing how many times each URL was visited |
-| **Unimodal** | Only one URL has the highest frequency |
+The **MODE** is the value that appears most frequently in a dataset. For browser history, the mode is the URL visited most often. If multiple URLs share the highest frequency, the data is **multimodal**.
 
 ---
 
-## 🏗 Project Architecture
+## 🏗️ Project Architecture
+
+This project uses a modern **React + FastAPI** stack:
 
 ```
-BDA/
-├── app.py                 # Main Streamlit GUI application
-├── bloom_filter.py        # Core Bloom Filter implementation
-├── data_generator.py      # Synthetic browser history generator
-├── mode_calculator.py     # Frequency analysis & mode calculation
-├── utils.py               # Helper utility functions
-├── requirements.txt       # Python dependencies
-├── README.md              # This file
-└── data/
-    └── browser_history.csv  # Generated/uploaded dataset
+Bloom-Filter-Big-Data-/
+├── backend/                        # FastAPI + Python backend
+│   ├── main.py                     # FastAPI app with REST API endpoints
+│   ├── bloom_filter.py             # Core Bloom Filter implementation
+│   ├── data_generator.py           # Synthetic browser history generator
+│   ├── mode_calculator.py          # Frequency & mode analysis
+│   ├── utils.py                    # Helper utilities
+│   ├── requirements.txt            # Backend dependencies
+│   └── data/                       # Generated CSV data
+│
+└── frontend/                       # React frontend (white background theme)
+    ├── src/
+    │   ├── App.jsx                 # Main app with tabbed navigation
+    │   ├── components/
+    │   │   ├── DataInput.jsx       # Generate/upload browser history data
+    │   │   ├── BloomConfig.jsx     # Bloom filter configuration + analyze
+    │   │   ├── OverviewTab.jsx     # Project overview & loaded data
+    │   │   ├── ResultsTab.jsx      # Metrics, confusion matrix, results table
+    │   │   ├── ModeTab.jsx         # Mode analysis & top URLs chart
+    │   │   ├── ChartsTab.jsx       # Visualizations (Chart.js)
+    │   │   └── ConclusionTab.jsx   # Conclusion & export metrics
+    │   ├── services/
+    │   │   └── api.js              # API client
+    │   ├── utils/
+    │   │   └── formatters.js       # Formatting helpers
+    │   └── styles/
+    │       └── App.css             # White background theme
+    ├── package.json
+    └── vite.config.js
 ```
 
-### Module Dependency Diagram:
+### How it works end-to-end
 
-```
-                    ┌─────────────┐
-                    │   app.py    │  ← Streamlit GUI (entry point)
-                    │  (main app) │
-                    └──────┬──────┘
-                           │
-            ┌──────────────┼──────────────┐
-            │              │              │
-    ┌───────▼──────┐ ┌─────▼──────┐ ┌─────▼──────┐
-    │ bloom_filter │ │   data_    │ │   mode_    │
-    │    .py       │ │ generator  │ │ calculator │
-    │              │ │   .py      │ │    .py     │
-    └──────────────┘ └────────────┘ └────────────┘
-            │                              │
-            └──────────┐  ┌────────────────┘
-                       │  │
-                  ┌────▼──▼────┐
-                  │  utils.py  │
-                  └────────────┘
-```
+1. **React frontend** lets you generate synthetic browser history or upload a CSV.
+2. Data is sent to the **FastAPI backend** via REST.
+3. The backend streams URLs through the **Bloom filter**, comparing against an exact Python `set` as ground truth.
+4. Metrics (accuracy, precision, recall, F1, memory savings) are computed and returned as JSON.
+5. The frontend renders metrics, tables, and **Chart.js** visualizations.
+6. Results can be **exported as JSON/CSV** for your report.
 
 ---
 
-## ⚡ Installation & Setup
+## 🛠️ Installation & Setup
 
 ### Prerequisites
 
-- **Python 3.8+** installed on your system
-- **pip** (Python package manager)
+- **Python 3.9+**
+- **Node.js 16+** and **npm**
 
-### Step 1: Navigate to the Project Directory
-
-```bash
-cd D:\college\project\BDA
-```
-
-### Step 2: (Optional) Create a Virtual Environment
+### 1. Backend Setup
 
 ```bash
-# Create virtual environment
+# Navigate to the project root
+cd "Bloom-Filter-Big-Data-"
+
+# Create a virtual environment (or reuse the existing venv/)
 python -m venv venv
+source venv/bin/activate    # Windows: venv\Scripts\activate
 
-# Activate it
-# On Windows:
-venv\Scripts\activate
-# On macOS/Linux:
+# Install backend dependencies
+pip install -r backend/requirements.txt
+```
+
+If you reuse the existing `venv/`, just install the FastAPI-specific packages:
+
+```bash
 source venv/bin/activate
+pip install fastapi uvicorn python-multipart
 ```
 
-### Step 3: Install Dependencies
+### 2. Frontend Setup
 
 ```bash
-pip install -r requirements.txt
-```
+# Navigate to the frontend directory
+cd frontend
 
-This installs:
-| Package | Purpose |
-|---------|---------|
-| `streamlit` | Web-based GUI framework |
-| `mmh3` | MurmurHash3 — fast, non-cryptographic hash function |
-| `bitarray` | Memory-efficient bit array implementation |
-| `pandas` | Data manipulation and CSV handling |
-| `plotly` | Interactive charts and visualizations |
-| `numpy` | Numerical operations for array manipulation |
+# Install dependencies
+npm install
+```
 
 ---
 
-## 🚀 How to Run
+## ▶️ How to Run
 
-### Start the Application
+You need **two terminals**.
+
+### Terminal 1 — Start the Backend
 
 ```bash
-streamlit run app.py
+source venv/bin/activate
+cd backend
+python -m uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
-This will open the application in your default web browser at `http://localhost:8501`.
+The API will be available at `http://localhost:8000`. Interactive API docs at
+`http://localhost:8000/docs` (Swagger UI).
 
-### Quick Test (Without GUI)
-
-You can also test the Bloom Filter directly from the command line:
+### Terminal 2 — Start the Frontend
 
 ```bash
-python -c "
-from bloom_filter import BloomFilter
+cd frontend
+npm run dev
+```
 
-# Create a Bloom Filter expecting 1000 items with 1% false positive rate
-bf = BloomFilter(expected_items=1000, false_positive_rate=0.01)
+Open your browser at **`http://localhost:3000`**. The Vite dev server proxies `/api`
+requests to the backend on port 8000 automatically.
 
-# Add some URLs
-bf.add('https://google.com')
-bf.add('https://youtube.com')
-bf.add('https://github.com')
+### Production Build (optional)
 
-# Check URLs
-print('google.com in filter?', bf.check('https://google.com'))       # True
-print('youtube.com in filter?', bf.check('https://youtube.com'))     # True
-print('facebook.com in filter?', bf.check('https://facebook.com'))   # False (probably)
-
-# Print stats
-for key, value in bf.get_stats().items():
-    print(f'{key}: {value}')
-"
+```bash
+cd frontend
+npm run build
+npm run preview
 ```
 
 ---
 
-## 🎨 Application Features
+## ✨ Application Features
 
-### Tab 1: 🏠 Overview
-- Explains how Bloom Filters work with mathematical formulas
-- Shows current dataset statistics (total entries, unique URLs, duplicates)
-- Previews Bloom Filter parameters (bit array size, hash functions, memory usage)
-- Displays sample data from the loaded/generated CSV
+### Data Input (Step 1)
+- **Generate synthetic data** — tune total entries, unique URL pool size, and duplicate pressure (power-law popularity distribution).
+- **Upload CSV** — load your own browser history with a `url`/`link` column.
 
-### Tab 2: 🔍 Duplicate Detection
-- Processes every URL through the Bloom Filter
-- Classifies each result as:
-  - ✅ **True Duplicate** — correctly identified duplicate
-  - 🆕 **First Seen** — correctly identified new URL
-  - ⚠️ **False Positive** — incorrectly flagged as duplicate (expected with Bloom Filters)
-  - ❌ **False Negative** — should NEVER happen (Bloom Filter guarantee)
-- Shows accuracy metrics, precision, and a detailed results table
-- Compares Bloom Filter results against ground truth (Python set)
+### Bloom Filter Configuration (Steps 2–3)
+- Select the **target false-positive rate** (0.1% to 10%).
+- Lower rates cost more memory; 1% is a balanced default.
+- Click **Run analysis** to process URLs and compute accuracy.
 
-### Tab 3: 📊 Mode Analysis
-- Calculates and displays the **mode** (most visited URL)
-- Detects **multimodal** data (multiple URLs with same top frequency)
-- Shows summary statistics (total, unique, duplicate count, percentage)
-- Displays Top 10 most visited URLs in a table and horizontal bar chart
-- Full frequency distribution chart (Top 20)
+### Tabs
 
-### Tab 4: 📈 Visualizations
-- **Bit Array Heatmap**: Visual representation of the Bloom Filter's bit array
-- **Accuracy Breakdown**: Pie chart + Confusion Matrix of detection results
-- **Memory Comparison**: Bar chart comparing Bloom Filter vs HashSet memory usage
-- **Fill Ratio Over Time**: Line chart showing how the bit array fills up
-- **False Positive Rate Curve**: Theoretical FP rate as more elements are added
+| Tab | What you see |
+|-----|--------------|
+| **Overview** | Project description, loaded data stats, sample rows |
+| **Detection** | Confusion matrix counts (TP/TN/FP/FN), evaluation metrics (accuracy, precision, recall, F1, FPR, FNR), memory savings, filter parameters, filterable results table |
+| **Mode** | Most visited URL, duplicate summary, top-10 URLs chart + table, multimodal detection |
+| **Charts** | Bit array snapshot, prediction pie, confusion matrix, memory comparison bar, fill-ratio line, FPR curve, frequency distribution |
+| **Conclusion** | Key insights & conclusion, **export metrics** as JSON/CSV for your report |
 
 ---
 
-## 📖 Code Walkthrough
+## 🔌 API Endpoints
 
-### 1. `bloom_filter.py` — Core Bloom Filter
-
-This is the heart of the project. It implements a Bloom Filter from scratch.
-
-**Key Methods:**
-
-| Method | What It Does |
-|--------|-------------|
-| `__init__(expected_items, fp_rate)` | Calculates optimal `m` (bit array size) and `k` (hash count), initializes the bit array |
-| `add(item)` | Hashes the item `k` times, sets those bit positions to `1` |
-| `check(item)` | Hashes the item `k` times, returns `True` if ALL bits at those positions are `1` |
-| `current_false_positive_rate()` | Calculates the theoretical FP rate based on current state |
-| `fill_ratio()` | Returns the percentage of bits that are set to `1` |
-| `get_stats()` | Returns a dictionary with all filter parameters and metrics |
-
-**Hash Function**: We use **MurmurHash3** (`mmh3`) — a fast, non-cryptographic hash function widely used in Big Data applications (Hadoop, Spark, Cassandra all use it). Each hash function uses a different **seed** value (0, 1, 2, ..., k-1) to produce independent hash values.
-
-### 2. `data_generator.py` — Synthetic Data Generator
-
-Generates realistic browser history data with:
-- **40+ real-world domains** (Google, YouTube, GitHub, etc.)
-- **30 realistic URL paths** (/search, /login, /dashboard, etc.)
-- **Power-law distribution**: Top 10% of URLs ("popular sites") get ~60% of the traffic, mimicking real browsing behavior
-- Entries span a **30-day time window** with random timestamps
-- Output is a **sorted CSV** (chronological order)
-
-### 3. `mode_calculator.py` — Mode Calculation
-
-Uses Python's `collections.Counter` to:
-- Count the frequency of each URL
-- Find the mode (most common URL)
-- Detect multimodal data
-- Generate Top-N frequency tables
-
-### 4. `utils.py` — Utility Functions
-
-- **CSV loading** with auto-detection of URL columns (handles 'url', 'link', 'URL', etc.)
-- **Memory estimation** for HashSet comparison
-- **Size formatting** (bytes → KB → MB → GB)
-
-### 5. `app.py` — Streamlit GUI
-
-The main application that ties everything together. Key implementation details:
-- Uses `st.session_state` to persist data across Streamlit re-runs
-- Processes URLs sequentially: for each URL, CHECK first, then ADD if new
-- Maintains a parallel Python `set` as ground truth for accuracy comparison
-- All charts use **Plotly** for interactivity (zoom, hover, pan)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/health` | Health check |
+| `POST` | `/api/generate-data` | Generate synthetic browser history CSV |
+| `POST` | `/api/upload-csv` | Upload a CSV file (multipart) |
+| `POST` | `/api/analyze` | Run Bloom filter analysis on the loaded data |
+| `GET` | `/api/download-metrics/{path}` | Fetch metrics directly |
 
 ---
 
-## 📊 Key Observations & Results
+## 🧰 Technologies Used
 
-### Expected Behavior:
+### Backend
+- **FastAPI** — high-performance REST API framework
+- **Uvicorn** — ASGI server
+- **Pandas / NumPy** — data manipulation and analysis
+- **mmh3** — MurmurHash3 for the Bloom filter's hash functions
+- **bitarray** — memory-efficient bit array storage
+- **python-multipart** — file upload handling
 
-1. **False Positive Rate**: With the default setting of 1%, you should see roughly 1% of first-seen URLs incorrectly flagged as duplicates.
-
-2. **False Negatives**: Should ALWAYS be 0. This is the fundamental guarantee of Bloom Filters. If you see any false negatives, there's a bug.
-
-3. **Memory Savings**: The Bloom Filter typically uses **95-99% less memory** than a Python set for the same data.
-
-4. **Fill Ratio**: As more elements are added, the bit array fills up. Once the fill ratio exceeds ~50%, the false positive rate increases rapidly.
-
-5. **Mode**: With the synthetic data generator's power-law distribution, the mode will typically be one of the "popular" URLs (top 10% of the URL pool).
+### Frontend
+- **React 18** — UI framework
+- **Vite** — fast build tool and dev server
+- **Chart.js + react-chartjs-2** — interactive charts
+- **Pure CSS** — clean white-background responsive theme
 
 ---
 
-## 🛠 Technologies Used
+## 📈 Key Observations & Results
 
-| Technology | Version | Purpose |
-|------------|---------|---------|
-| Python | 3.8+ | Core programming language |
-| Streamlit | ≥1.28.0 | Web-based GUI framework |
-| mmh3 | ≥4.0.0 | MurmurHash3 hash function |
-| bitarray | ≥2.8.0 | Memory-efficient bit array |
-| Pandas | ≥2.0.0 | Data manipulation & CSV handling |
-| Plotly | ≥5.18.0 | Interactive visualizations |
-| NumPy | ≥1.24.0 | Numerical operations |
+Running on a synthetic dataset of **10,000 visits** (500 unique URLs, ~60% duplicates) at a **1% target false-positive rate**:
+
+- **~99% memory saved** vs a Python HashSet (Bloom filter stores bits, not full URL strings).
+- **100% recall** — zero false negatives, confirming the Bloom filter guarantee.
+- **Near 100% accuracy** — only a handful of false positives (~target FPR).
+- **Mode**: the most-visited URL dominates, reflecting power-law browsing behavior.
+
+The trade-off is clear: a small, tunable false-positive rate buys massive memory savings at Big Data scale.
 
 ---
 
 ## 📚 References
 
-1. **Bloom, B. H. (1970)**. "Space/time trade-offs in hash coding with allowable errors". *Communications of the ACM*, 13(7), 422–426.
-2. **MurmurHash3**: [https://github.com/aappleby/smhasher](https://github.com/aappleby/smhasher)
-3. **Bloom Filter Calculator**: [https://hur.st/bloomfilter/](https://hur.st/bloomfilter/)
-4. **Streamlit Documentation**: [https://docs.streamlit.io/](https://docs.streamlit.io/)
-5. **Big Data Analytics** — Course material on probabilistic data structures.
-
----
-
-<p align="center">
-  Built with ❤️ for Big Data Analytics<br>
-  Bloom Filter + Mode Calculation
-</p>
+- Bloom, B. H. (1970). *Space/time trade-offs in hash coding with allowable errors.* Communications of the ACM, 13(7), 422–426.
+- Wikipedia. *Bloom filter.*
