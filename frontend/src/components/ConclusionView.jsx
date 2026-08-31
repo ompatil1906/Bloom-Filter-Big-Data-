@@ -1,13 +1,12 @@
 import React from 'react'
-import { formatBytes } from '../utils/formatters'
 
-export default function ConclusionTab({ data, results }) {
+export default function ConclusionView({ data, results }) {
   if (!data) {
     return <div className="alert alert-info">Load data and run analysis to generate the conclusion.</div>
   }
 
   if (!results) {
-    return <div className="alert alert-info">Run the analysis from Step 3 to build the conclusion.</div>
+    return <div className="alert alert-info">Click <strong>Run analysis</strong> in the sidebar to build the conclusion.</div>
   }
 
   const s = results.accuracy_stats

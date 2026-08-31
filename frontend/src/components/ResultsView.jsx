@@ -1,13 +1,12 @@
 import React, { useState } from 'react'
-import { formatBytes } from '../utils/formatters'
 
-export default function ResultsTab({ data, results, fpRate }) {
+export default function ResultsView({ data, results }) {
   const [filter, setFilter] = useState('All')
 
   if (!data) {
     return (
       <div className="alert alert-info">
-        Load data from Step 1 before running the analysis.
+        Load a dataset from the <strong>Data</strong> page (sidebar) before running the analysis.
       </div>
     )
   }
@@ -15,7 +14,7 @@ export default function ResultsTab({ data, results, fpRate }) {
   if (!results) {
     return (
       <div className="alert alert-info">
-        Click "Run analysis" in Step 3 to process the loaded URLs.
+        Configure the false-positive rate and click <strong>Run analysis</strong> in the sidebar.
       </div>
     )
   }

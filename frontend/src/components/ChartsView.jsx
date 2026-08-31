@@ -12,7 +12,7 @@ import {
   Legend,
   RadialLinearScale,
 } from 'chart.js'
-import { Bar, Pie, Line, Scatter } from 'react-chartjs-2'
+import { Bar, Pie, Line } from 'react-chartjs-2'
 import { formatBytes } from '../utils/formatters'
 
 ChartJS.register(
@@ -28,7 +28,7 @@ ChartJS.register(
   RadialLinearScale
 )
 
-export default function ChartsTab({ data, results }) {
+export default function ChartsView({ data, results }) {
   const charts = useMemo(() => {
     if (!results) return null
     const s = results.accuracy_stats
@@ -109,12 +109,14 @@ export default function ChartsTab({ data, results }) {
       },
     }
 
+    const fillHistory = results.fill_history || []
+
     const fillData = {
-      labels: bf.fill_history.map((h) => h.items),
+      labels: fillHistory.map((h) => h.items),
       datasets: [
         {
           label: 'Fill ratio',
-          data: bf.fill_history.map((h) => h.fill_ratio),
+          data: fillHistory.map((h) => h.fill_ratio),
           borderColor: '#2563eb',
           backgroundColor: '#2563eb',
           tension: 0.3,
@@ -176,7 +178,7 @@ export default function ChartsTab({ data, results }) {
       },
     }
 
-    return { pieData, pieOptions, freqData, freqOptions, memoryData, memoryOptions, fillData, fillOptions, fpData, fpOptions, bf, s }
+    return { pieData, pieOptions, freqData, freqOptions, memoryData, memoryOptions, fillData, fillOptions, fpData, fpOptions, bf, s, hasFillHistory: fillHistory.length > 0 }
   }, [results])
 
   if (!data) {
@@ -284,7 +286,7 @@ export default function ChartsTab({ data, results }) {
       <div className="charts-grid">
         <div className="chart-box">
           <div style={{ height: '320px' }}>
-            {charts.bf.fill_history.length > 0 ? (
+            {charts.hasFillHistory ? (
               <Line data={charts.fillData} options={charts.fillOptions} />
             ) : (
               <div className="alert alert-info">Fill history is not available for this dataset.</div>

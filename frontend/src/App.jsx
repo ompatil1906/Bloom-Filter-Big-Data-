@@ -1,24 +1,24 @@
 import React, { useState } from 'react'
-import DataInput from './components/DataInput'
-import BloomConfig from './components/BloomConfig'
-import OverviewTab from './components/OverviewTab'
-import ResultsTab from './components/ResultsTab'
-import ChartsTab from './components/ChartsTab'
-import ModeTab from './components/ModeTab'
-import ConclusionTab from './components/ConclusionTab'
+import DataAnalysisView from './components/DataAnalysisView'
+import DashboardView from './components/DashboardView'
+import ResultsView from './components/ResultsView'
+import ChartsView from './components/ChartsView'
+import ModeView from './components/ModeView'
+import ConclusionView from './components/ConclusionView'
 
-const TABS = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'detection', label: 'Detection' },
-  { id: 'mode', label: 'Mode' },
-  { id: 'charts', label: 'Charts' },
-  { id: 'conclusion', label: 'Conclusion' },
+const NAV_ITEMS = [
+  { id: 'dashboard', label: 'Dashboard', icon: '🏠' },
+  { id: 'data', label: 'Data & Analysis', icon: '⚙️' },
+  { id: 'detection', label: 'Detection', icon: '🎯' },
+  { id: 'mode', label: 'Mode', icon: '📊' },
+  { id: 'charts', label: 'Charts', icon: '📈' },
+  { id: 'conclusion', label: 'Conclusion', icon: '✅' },
 ]
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('overview')
-  const [data, setData] = useState(null)          // { urls, dataPath, summary, sampleData }
-  const [results, setResults] = useState(null)    // Full analysis results
+  const [activeNav, setActiveNav] = useState('dashboard')
+  const [data, setData] = useState(null)
+  const [results, setResults] = useState(null)
   const [fpRate, setFpRate] = useState(0.01)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -30,76 +30,128 @@ export default function App() {
       summary: payload.summary,
     })
     setResults(null)
-    setActiveTab('overview')
+    setActiveNav('data')
   }
 
   const handleAnalyzed = (result) => {
     setResults(result)
-    setActiveTab('detection')
+    setActiveNav('detection')
+  }
+
+  const handleClear = () => {
+    setData(null)
+    setResults(null)
+    setError(null)
+    setActiveNav('dashboard')
+  }
+
+  const duplicateCount = data
+    ? data.summary.total_entries - data.summary.unique_urls_in_data
+    : 0
+
+  const renderView = () => {
+    switch (activeNav) {
+      case 'dashboard':
+        return <DashboardView data={data} onNavigate={setActiveNav} />
+      case 'data':
+        return (
+          <DataAnalysisView
+            data={data}
+            results={results}
+            fpRate={fpRate}
+            setFpRate={setFpRate}
+            onDataLoaded={handleDataLoaded}
+            onAnalyze={handleAnalyzed}
+            setLoading={setLoading}
+            setError={setError}
+            onNavigate={setActiveNav}
+          />
+        )
+      case 'detection':
+        return <ResultsView data={data} results={results} />
+      case 'mode':
+        return <ModeView data={data} results={results} />
+      case 'charts':
+        return <ChartsView data={data} results={results} />
+      case 'conclusion':
+        return <ConclusionView data={data} results={results} />
+      default:
+        return <DashboardView data={data} onNavigate={setActiveNav} />
+    }
   }
 
   return (
     <div className="app">
-      <header className="app-header">
-        <div className="app-kicker">Big Data Analytics</div>
-        <h1 className="app-title">URL Duplicate Analyzer</h1>
-        <p className="app-subtitle">
-          Bloom filter duplicate detection with mode analysis for browser history
-        </p>
-      </header>
-
-      {data && (
-        <div className="status-banner">
-          Loaded <strong>{data.summary.total_entries.toLocaleString()}</strong> URL
-          visits with <strong>{data.summary.unique_urls_in_data.toLocaleString()}</strong>{' '}
-          unique URLs and{' '}
-          <strong>{(data.summary.total_entries - data.summary.unique_urls_in_data).toLocaleString()}</strong>{' '}
-          duplicate entries.
-        </div>
-      )}
-
-      <div className="card">
-        <div className="tabs" role="tablist">
-          {TABS.map((tab) => (
-            <button
-              key={tab.id}
-              className={`tab ${activeTab === tab.id ? 'active' : ''}`}
-              onClick={() => setActiveTab(tab.id)}
-              role="tab"
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        <DataInput onDataLoaded={handleDataLoaded} setLoading={setLoading} setError={setError} />
-        <BloomConfig
-          data={data}
-          fpRate={fpRate}
-          setFpRate={setFpRate}
-          onAnalyze={handleAnalyzed}
-          setLoading={setLoading}
-          setError={setError}
-        />
-
-        <hr className="divider" />
-
-        {error && <div className="alert alert-error">{error}</div>}
-
-        {loading ? (
-          <div className="spinner-container">
-            <div className="spinner" />
-            <span>Processing...</span>
+      <nav className="navbar">
+        <div className="navbar-brand">
+          <div className="navbar-logo">🔍</div>
+          <div>
+            <div className="navbar-title">URL Duplicate Analyzer</div>
+            <div className="navbar-sub">Bloom Filter · Big Data</div>
           </div>
-        ) : (
-          <>
-            {activeTab === 'overview' && <OverviewTab data={data} results={results} />}
-            {activeTab === 'detection' && <ResultsTab data={data} results={results} fpRate={fpRate} />}
-            {activeTab === 'mode' && <ModeTab data={data} results={results} />}
-            {activeTab === 'charts' && <ChartsTab data={data} results={results} />}
-            {activeTab === 'conclusion' && <ConclusionTab data={data} results={results} />}
-          </>
-        )}
+        </div>
+        <div className="navbar-status">
+          <span className={`pill ${data ? 'pill-green' : 'pill-gray'}`}>
+            {data ? `${data.summary.total_entries.toLocaleString()} visits loaded` : 'No dataset'}
+          </span>
+        </div>
+      </nav>
+
+      <div className="layout">
+        <aside className="sidebar">
+          <div className="sidebar-heading">Navigation</div>
+          <nav className="sidebar-nav">
+            {NAV_ITEMS.map((item) => (
+              <button
+                key={item.id}
+                className={`nav-item ${activeNav === item.id ? 'active' : ''}`}
+                onClick={() => setActiveNav(item.id)}
+              >
+                <span className="nav-item-icon">{item.icon}</span>
+                <span className="nav-item-label">{item.label}</span>
+                {item.id === 'detection' && results && <span className="nav-item-check">✓</span>}
+              </button>
+            ))}
+          </nav>
+
+          {data && results && (
+            <>
+              <div className="sidebar-divider" />
+              <div className="sidebar-stats">
+                <div className="stat-row">
+                  <span>Accuracy</span>
+                  <strong>{results.accuracy_stats.accuracy.toFixed(2)}%</strong>
+                </div>
+                <div className="stat-row">
+                  <span>Memory saved</span>
+                  <strong>{results.memory.savings_percentage.toFixed(1)}%</strong>
+                </div>
+              </div>
+            </>
+          )}
+
+          {data && (
+            <>
+              <div className="sidebar-divider" />
+              <button className="btn btn-secondary" onClick={handleClear}>
+                Clear dataset
+              </button>
+            </>
+          )}
+        </aside>
+
+        <main className="content">
+          {error && <div className="alert alert-error">{error}</div>}
+
+          {loading ? (
+            <div className="spinner-container">
+              <div className="spinner" />
+              <span>Processing...</span>
+            </div>
+          ) : (
+            renderView()
+          )}
+        </main>
       </div>
 
       <footer className="footer">

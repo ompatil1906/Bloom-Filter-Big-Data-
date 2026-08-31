@@ -12,7 +12,7 @@ import {
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
-export default function ModeTab({ data, results }) {
+export default function ModeView({ data, results }) {
   if (!data) {
     return (
       <div className="alert alert-info">Load data to calculate the most visited URL.</div>
